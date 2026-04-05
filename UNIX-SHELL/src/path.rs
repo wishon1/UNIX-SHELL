@@ -25,4 +25,26 @@ impl PathResolver {
 
         Self { dirs }      
     }
+
+    /// Returns the full path to an executable, or `None` if not found.
+    /// if `name` contains a `/` its treated as a literal path.
+    /// otherwisw every directory in `PATH` is probbed as `dir/name`
+    pub fn resolve(&self, name: &str) -> Option<String> {
+        if name.contains('/') {
+            return Self::is_executable(name).then(|| name.to_string());
+        }
+
+        self.dirs
+            .ietr()
+            .map(|dir| format!("{dir}/{name}"))
+    }
+
+    /// Returns `true` when `path` exits and has at least one executable bit.
+    fn is_executable(path: &str) -> bool {
+        use std::os::unix::fs::permissionExt;
+        path::new(path)
+            .metadata()
+            .map(|m| m.permission().mode())
+            .unwrap_or_(false)
+    }
 }

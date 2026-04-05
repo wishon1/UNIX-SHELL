@@ -2,7 +2,7 @@ use std::io::(Self)
 use crate::error::Error;
 use crate::path::PathResolver;s
 
-impl shell {
+impl Shell {
     /// Construct a [`Shell`], read the `PATH` and detect the terminal
     pub fn new() -> {
         Self {
