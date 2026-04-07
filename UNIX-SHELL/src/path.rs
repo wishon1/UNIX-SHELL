@@ -1,51 +1,57 @@
 use std::path::Path;
 
-/// Resolve the the command by searching for the full executable path in "PATH"
+/// Resolves a command name to a full executable path by searching `PATH`.
 ///
-/// for example the user types ls this dir looks for /usr/local/bin/ls
-/// in the "PATH" and resolves it
-///
-/// Constructed once when the [`crate::shell::Shell`] starts so that the
+/// Constructed once when the [`crate::shell::Shell`] starts so the
 /// environment variable is read exactly once, not on every command.
-
 pub struct PathResolver {
-    // directory to search, in order. Empty when `PATH` is unset.
+    /// Directories to search, in order. Empty when `PATH` is unset.
     dirs: Vec<String>,
 }
 
 impl PathResolver {
-    // Reads `PATH` from the enviromant and builds the search list
+    /// Reads `PATH` from the environment and builds the search list.
     pub fn new() -> Self {
-        let dirs = std::env::var("PATH")
-            .unwrap_or_default()
-            .split(':')
-            .filter(|s| !s.is_empty())
-            .map(String::from)
-            .collect();
+        let path_var = std::env::var("PATH").unwrap_or_default();
+        let split_path_var = path_var.split(':');
 
-        Self { dirs }      
+        let mut dirs = Vec::new();
+        for part in split_path_var {
+            if !part.is_empty() {
+                dirs.push(part.to_string());
+            }
+        }
+        Self { dirs }
     }
 
     /// Returns the full path to an executable, or `None` if not found.
-    /// if `name` contains a `/` its treated as a literal path.
-    /// otherwisw every directory in `PATH` is probbed as `dir/name`
+    ///
+    /// If `name` contains a `/` it is treated as a literal path.
+    /// Otherwise every directory in `PATH` is probed as `dir/name`.
     pub fn resolve(&self, name: &str) -> Option<String> {
         if name.contains('/') {
-            return Self::is_executable(name).then(|| name.to_string());
+            if Self::is_executable(name) {
+                return Some(name.to_string());
+            } else {
+                return None;
+            }
         }
 
-        self.dirs
-            .iter()
-            .map(|dir| format!("{dir}/{name}"))
-            .find(|p| Self::is_executable(p))
+        for dir in &self.dirs {
+            let full_path = format!("{}/{}", dir, name);
+            if Self::is_executable(&full_path) {
+                return Some(full_path);
+            }
+        }
+        None
     }
 
-    /// Returns `true` when `path` exits and has at least one executable bit.
+    /// Returns `true` when `path` exists and has at least one executable bit.
     fn is_executable(path: &str) -> bool {
-        use std::os::unix::fs::permissionExt;
-        path::new(path)
+        use std::os::unix::fs::PermissionsExt;
+        Path::new(path)
             .metadata()
-            .map(|m| m.permission().mode() & 0o111 != 0)
-            .unwrap_or_(false)
+            .map(|m| m.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
     }
 }

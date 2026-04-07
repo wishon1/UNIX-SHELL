@@ -1,5 +1,6 @@
-use crate::builtin::Builtin
 use crate::path::PathResolver;
+use crate::error::Error;
+use crate::builtin::Builtin;
 
 /// A parsed shell command ready for execution.
 ///
@@ -8,32 +9,36 @@ use crate::path::PathResolver;
 /// indexing arithmetic into every call site that touches this type.
 #[derive(Debug, PartialEq)]
 pub struct Command {
-    /// The program name or built-in exactly as typed
+    /// The program name or built-in, exactly as typed.
     pub name: String,
     /// Arguments to the program, not including the name itself.
     pub args: Vec<String>,
 }
 
 impl Command {
-     /// Parses a raw input line into a [`Command`].
+    /// Parses a raw input line into a [`Command`].
     ///
     /// Named `parse` rather than `new` because it is a fallible
     /// transformation of input data, not a trivial construction.
     ///
     /// # Errors
     /// Returns [`Error::EmptyInput`] when `line` is blank or whitespace-only.
-
     pub fn parse(line: &str) -> Result<Self, Error> {
         let mut tokens = line.split_whitespace();
 
-        let name = tokens
-            .next()
-            .ok_or(Error::EmptyInput)?
-            .to_string();
+        // Try to get the first word.
+        let name = match tokens.next() {
+            Some(word) => word.to_string(),
+            None       => return Err(Error::EmptyInput),
+        };
 
-        let args = tokens.map(String::from).collect();
-        
-        Ok(Self { name, args})
+        // Collect remaining tokens as arguments.
+        let mut args = Vec::new();
+        for token in tokens {
+            args.push(token.to_string());
+        }
+
+        Ok(Self { name, args })
     }
 
     /// Dispatches this command: built-ins run in-process, everything else
@@ -45,14 +50,14 @@ impl Command {
     /// # Errors
     /// Propagates [`Error::CommandNotFound`] or [`Error::Os`].
     pub fn run(&self, resolver: &PathResolver) -> Result<(), Error> {
-        if let Some(builtin) = builtin::lookup(&self.name) {
+        if let Some(builtin) = Builtin::lookup(&self.name) {
             return builtin.run(&self.args);
         }
 
         self.execute(resolver)
     }
 
-     /// Spawns this command as an external child process and waits for it.
+    /// Spawns this command as an external child process and waits for it.
     fn execute(&self, resolver: &PathResolver) -> Result<(), Error> {
         let path = resolver
             .resolve(&self.name)

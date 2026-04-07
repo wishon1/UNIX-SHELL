@@ -1,4 +1,6 @@
-use std::io::(Self)
+use std::io::{self, BufRead, Write};
+
+use crate::command::Command;
 use crate::error::Error;
 use crate::path::PathResolver;
 
@@ -6,63 +8,65 @@ use crate::path::PathResolver;
 ///
 /// Constructed once in `main`. Owns the [`PathResolver`] so `PATH` is
 /// read from the environment exactly once for the lifetime of the shell.
-
 pub struct Shell {
-    /// pre-built for reuse for every external lookup
+    /// Pre-built resolver reused for every external command lookup.
     resolver: PathResolver,
-    /// `true` when stdout is an interactive terminal; supresses promt otherwise
-    interactive_mode: bool,
+    /// `true` when stdout is an interactive terminal; suppresses prompt otherwise.
+    interactive: bool,
 }
+
 impl Shell {
-    /// Construct a [`Shell`], read the `PATH` and detect the terminal
-    pub fn new() -> {
+    /// Constructs a [`Shell`], reading `PATH` and detecting the terminal once.
+    pub fn new() -> Self {
         Self {
-            resolver: PathResolver::new(),
-            interactive_mode: io::stdout().is_terminal()
+            resolver:    PathResolver::new(),
+            interactive: io::IsTerminal::is_terminal(&io::stdout()),
         }
     }
 
-    /// Read command, execute it, print result, continue the loop until EOF
-    /// --returning the process exit code to `main`
-    /// 
-    /// Returning an exit code rather than calling  `std::process::exit` helps
-    /// -- keeps this function clean and lets `main` perform any future teardown
-    pub fn run(&Self) -> i32 {
-        let stdin = io::stdin.lock();
+    /// Runs the REPL until EOF, returning the process exit code to `main`.
+    ///
+    /// Returning an exit code rather than calling `std::process::exit` here
+    /// keeps this function clean and lets `main` perform any future teardown.
+    pub fn run(&self) -> i32 {
+        let stdin = io::stdin();
 
         loop {
             self.print_prompt();
+
             let mut line = String::new();
-            match stdin.read_line(&mut line) {
+
+            match stdin.lock().read_line(&mut line) {
                 Ok(0) => {
-                    // EOF: ctr-D in interactive mode, or end of a piped script
-                    println();
+                    // EOF: Ctrl-D in interactive mode, or end of a piped script.
+                    if self.interactive {
+                        println!();
+                    }
+                    return 0;
                 }
-                return 0;
+                Ok(_)  => {}
+                Err(e) => {
+                    eprintln!("rush: read error: {e}");
+                    return 1;
+                }
             }
-            Ok(_) => {}
-            Err(e) => { eprintln!("rush: read erro: {e}");
-                return 1;
-            }
-        }
 
-        match Command::parse(&line) {
-            // if user readline reads whitespace
-            Err(Error::EmptyInput) => continue,
-
-            Err(e) => eprintln!("{e}"),
-            Ok(cmd) => {
-                match cmd.run(&self.resolver) {
-                    Err(e) => eprintln!("{e}"),
-                    ok(_) => {}
+            match Command::parse(&line) {
+                Err(Error::EmptyInput) => continue,
+                Err(e)  => eprintln!("{e}"),
+                Ok(cmd) => {
+                    if let Err(e) = cmd.run(&self.resolver) {
+                        eprintln!("{e}");
+                    }
                 }
             }
         }
     }
 
+    /// Writes `$ ` to stdout and flushes — only in interactive mode.
     fn print_prompt(&self) {
-        if self.interactive_mode {
-            print("$ ");
+        if self.interactive {
+            print!("$ ");
             io::stdout().flush().ok();
         }
     }

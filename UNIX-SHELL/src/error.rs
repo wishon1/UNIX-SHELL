@@ -10,17 +10,17 @@ pub enum Error {
     EmptyInput,
 
     /// No executable matching `name` was found on `PATH`
-    CommandNotFound(Sting),
+    CommandNotFound(String),
 
     /// An OS-level call failed (spawn, chdir, etc.).
-    Os(Sting),
+    Os(String),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::EmptyInput => Ok(()),
-            Error::CommandNotFound(name) => write!(f, "rush: {name}: command not found")
+            Error::CommandNotFound(name) => write!(f, "rush: {name}: command not found"),
             Error::Os(msg) => write!(f, "rush: {msg}"),
         }
     }
