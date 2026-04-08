@@ -71,3 +71,21 @@ impl Command {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_name_and_args() {
+        let cmd = Command::parse("echo hello world").unwrap();
+        assert_eq!(cmd.name, "echo");
+        assert_eq!(cmd.args, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn single_token_yields_empty_args() {
+        let cmd = Command::parse("ls").unwrap();
+        assert_eq!(cmd.name, "ls");
+        assert!(cmd.args.is_empty());
+    }
