@@ -29,6 +29,9 @@ impl PathResolver {
     /// If `name` contains a `/` it is treated as a literal path.
     /// Otherwise every directory in `PATH` is probed as `dir/name`.
     pub fn resolve(&self, name: &str) -> Option<String> {
+        if name.is_empty() {
+            return None;
+        }
         if name.contains('/') {
             if Self::is_executable(name) {
                 return Some(name.to_string());
